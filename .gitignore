@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+jobs.db
+workday_seen.json
+workday_checked.json
+workday_rotation.json
+workday_sweep.log
