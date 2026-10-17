@@ -1,0 +1,43 @@
+# Job sweep — every 6 hours (4x daily, UTC). Free tier: a 3-5 min run
+# x 4/day x 30 days ~= 360-600 min/month, well under the 2,000 free minutes.
+#
+# Setup (one time, by the repo owner):
+#   1. Repo Settings -> Secrets and variables -> Actions -> New repository secret:
+#        DISCORD_WEBHOOK_URL, ADZUNA_APP_ID, ADZUNA_APP_KEY (Adzuna optional)
+#   2. Push. The schedule takes over from there.
+# Watch the first few runs: Indeed scraping from Azure datacenter IPs is
+# reported working, but confirm no 403/429 in the Actions log.
+name: job sweep
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch: {}   # manual "Run workflow" button
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to commit jobs.db back
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: install deps
+        run: pip install -r requirements.txt
+      - name: run sweep
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
+          ADZUNA_APP_KEY: ${{ secrets.ADZUNA_APP_KEY }}
+        run: python run.py
+      - name: commit sweep state
+        # jobs.db is gitignored locally, so force-add it here: without the
+        # commit-back, every scheduled run would re-alert on the same jobs.
+        run: |
+          git config user.name "jobcrawler"
+          git config user.email "jobcrawler@localhost"
+          git add -f jobs.db
+          git diff --cached --quiet || git commit -m "sweep state $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push
